@@ -1,0 +1,54 @@
+# ══════════════════════════════════════════════════════════════
+# OrdoCare — .gitignore
+# ══════════════════════════════════════════════════════════════
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+env/
+venv/
+ENV/
+.venv/
+
+# Distribution
+build/
+dist/
+eggs/
+*.egg-info/
+*.egg
+
+# Django
+*.log
+db.sqlite3
+db.sqlite3-journal
+/media/
+/staticfiles/
+
+# Secrets / Environnements
+.env
+.env.local
+.env.dev
+.env.prod
+!.env.example
+
+# Tests
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

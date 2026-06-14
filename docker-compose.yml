@@ -1,0 +1,101 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# OrdoCare — Docker Compose (Développement)
+#
+# Usage : cp .env.example .env && docker compose up --build
+# Accès : http://localhost:8000/swagger/
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ordocare-db-dev
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ordocare
+      POSTGRES_USER: ordocare_user
+      POSTGRES_PASSWORD: dev_db_password
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ordocare_user -d ordocare" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - internal
+  ml_service:
+    build:
+      context: ./ml_service
+      dockerfile: Dockerfile
+    container_name: ordocare-ml-dev
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./ml_service:/app
+    environment:
+      - ML_API_KEY=${ML_API_KEY:?ML_API_KEY must be set in .env}
+      - MAX_UPLOAD_SIZE_MB=20
+      - ENVIRONMENT=production
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8001 --log-level info
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+
+  backend:
+    build:
+      context: ./backend_django
+      dockerfile: Dockerfile
+    container_name: ordocare-backend-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend_django:/app
+      - media_data:/app/media
+    env_file:
+      - ./backend_django/.env.dev
+    environment:
+      - TESSERACT_CMD=/usr/bin/tesseract
+      - ML_SERVICE_URL=http://ml_service:8001
+      - ML_API_KEY=${ML_API_KEY:?ML_API_KEY must be set in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+      ml_service:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+
+volumes:
+  media_data:
+  postgres_data:
+
+
+networks:
+  internal:
+    driver: bridge

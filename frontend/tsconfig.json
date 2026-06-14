@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "strict": false
+  },
+  "extends": "expo/tsconfig.base",
+  "include": ["App.tsx", "src/**/*"],
+  "exclude": ["node_modules", "backend_django", "ml_service", "**/*.py"]
+}

@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "ordocareapp",
+    "slug": "ordocareapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.ordocareapp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {},
+    "plugins": [
+      "expo-secure-store"
+    ]
+  }
+}

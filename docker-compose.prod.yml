@@ -1,0 +1,101 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# OrdoCare — Docker Compose (Production)
+#
+# Usage :
+#   1. cp .env.example .env && nano .env  (remplir les valeurs)
+#   2. cp backend_django/.env.example backend_django/.env.prod && nano backend_django/.env.prod
+#   3. docker compose -f docker-compose.prod.yml up --build -d
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ordocare-db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ordocare
+      POSTGRES_USER: ordocare_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ordocare_user -d ordocare"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - internal
+
+  ml_service:
+    build:
+      context: ./ml_service
+      dockerfile: Dockerfile
+    container_name: ordocare-ml
+    environment:
+      - ML_API_KEY=${ML_API_KEY:?ML_API_KEY must be set in .env}
+      - MAX_UPLOAD_SIZE_MB=20
+      - ENVIRONMENT=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - internal
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+
+  backend:
+    build:
+      context: ./backend_django
+      dockerfile: Dockerfile
+    container_name: ordocare-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    env_file:
+      - ./backend_django/.env.prod
+    environment:
+      - TESSERACT_CMD=/usr/bin/tesseract
+      - ML_SERVICE_URL=http://ml_service:8001
+      - ML_API_KEY=${ML_API_KEY:?ML_API_KEY must be set in .env}
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=ordocare
+      - DB_USER=ordocare_user
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      db:
+        condition: service_healthy
+      ml_service:
+        condition: service_healthy
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             gunicorn ordocare_dj.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+  media_data:
+  static_data:
+
+networks:
+  internal:
+    driver: bridge
